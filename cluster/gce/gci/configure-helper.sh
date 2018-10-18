@@ -1278,7 +1278,7 @@ EOF
 function prepare-log-file {
   touch $1
   chmod 644 $1
-  if [ -n "${2-}" ] && [ -n "${3-}" ]; then
+  if [ -n "${2:-}" ] && [ -n "${3:-}" ]; then
     chown "$2":"$3" $1
   else
     chown "${LOG_OWNER_USER:-root}":"${LOG_OWNER_GROUP:-root}" $1
