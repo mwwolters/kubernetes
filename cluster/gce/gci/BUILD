@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 load("@io_kubernetes_build//defs:pkg.bzl", "pkg_tar")
 load("@io_kubernetes_build//defs:build.bzl", "release_filegroup")
 
@@ -12,6 +12,7 @@ go_test(
         ":scripts-test-data",
         "//cluster/gce/manifests",
     ],
+    embed = [":go_default_library"],
     deps = [
         "//pkg/api/legacyscheme:go_default_library",
         "//staging/src/k8s.io/api/core/v1:go_default_library",
@@ -68,4 +69,11 @@ filegroup(
     srcs = [
         "configure-helper.sh",
     ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["bash_env.go"],
+    importpath = "k8s.io/kubernetes/cluster/gce/gci",
+    visibility = ["//visibility:public"],
 )

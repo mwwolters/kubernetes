@@ -1278,11 +1278,7 @@ EOF
 function prepare-log-file {
   touch $1
   chmod 644 $1
-  if [ -n "${2:-}" ] && [ -n "${3:-}" ]; then
-    chown "$2":"$3" $1
-  else
-    chown "${LOG_OWNER_USER:-root}":"${LOG_OWNER_GROUP:-root}" $1
-  fi
+  chown "${2:-${LOG_OWNER_USER:-root}}":"${3:-${LOG_OWNER_GROUP:-root}}" $1
 }
 
 # Prepares parameters for kube-proxy manifest.
