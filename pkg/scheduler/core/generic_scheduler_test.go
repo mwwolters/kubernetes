@@ -28,6 +28,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	policy "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +39,7 @@ import (
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	extenderv1 "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultpodtopologyspread"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
@@ -386,6 +388,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("FalseFilter", NewFalseFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2", UID: types.UID("2")}},
@@ -403,6 +406,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"machine1", "machine2"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "ignore", UID: types.UID("ignore")}},
@@ -415,6 +419,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"machine1", "machine2"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine2", UID: types.UID("machine2")}},
@@ -427,6 +432,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"3", "2", "1"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "ignore", UID: types.UID("ignore")}},
@@ -439,6 +445,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"3", "2", "1"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2", UID: types.UID("2")}},
@@ -452,6 +459,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
 				st.RegisterScorePlugin("ReverseNumericMap", newReverseNumericMapPlugin(), 2),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"3", "2", "1"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2", UID: types.UID("2")}},
@@ -465,6 +473,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 				st.RegisterFilterPlugin("FalseFilter", NewFalseFilterPlugin),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"3", "2", "1"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2", UID: types.UID("2")}},
@@ -485,6 +494,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterFilterPlugin("NoPodsFilter", NewNoPodsFilterPlugin),
 				st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			pods: []*v1.Pod{
 				{
@@ -514,6 +524,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pvcs:  []v1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "existingPVC"}}},
@@ -540,6 +551,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod: &v1.Pod{
@@ -564,6 +576,7 @@ func TestGenericScheduler(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pvcs:  []v1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "existingPVC", DeletionTimestamp: &metav1.Time{}}}},
@@ -590,6 +603,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 				st.RegisterScorePlugin("FalseMap", newFalseMapPlugin(), 1),
 				st.RegisterScorePlugin("TrueMap", newTrueMapPlugin(), 2),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"2", "1"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
@@ -597,16 +611,16 @@ func TestGenericScheduler(t *testing.T) {
 			wErr:  fmt.Errorf("error while running score plugin for pod \"2\": %+v", errPrioritize),
 		},
 		{
-			name: "test even pods spread predicate - 2 nodes with maxskew=1",
+			name: "test podtopologyspread plugin - 2 nodes with maxskew=1",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					1,
 					podtopologyspread.New,
 					"PreFilter",
 					"Filter",
 				),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod: &v1.Pod{
@@ -644,16 +658,16 @@ func TestGenericScheduler(t *testing.T) {
 			wErr:          nil,
 		},
 		{
-			name: "test even pods spread predicate - 3 nodes with maxskew=2",
+			name: "test podtopologyspread plugin - 3 nodes with maxskew=2",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					1,
 					podtopologyspread.New,
 					"PreFilter",
 					"Filter",
 				),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod: &v1.Pod{
@@ -717,6 +731,7 @@ func TestGenericScheduler(t *testing.T) {
 					NewFakeFilterPlugin(map[string]framework.Code{"3": framework.Unschedulable}),
 				),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"3"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-filter", UID: types.UID("test-filter")}},
@@ -738,6 +753,7 @@ func TestGenericScheduler(t *testing.T) {
 					NewFakeFilterPlugin(map[string]framework.Code{"3": framework.UnschedulableAndUnresolvable}),
 				),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"3"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-filter", UID: types.UID("test-filter")}},
@@ -759,6 +775,7 @@ func TestGenericScheduler(t *testing.T) {
 					NewFakeFilterPlugin(map[string]framework.Code{"1": framework.Unschedulable}),
 				),
 				st.RegisterScorePlugin("NumericMap", newNumericMapPlugin(), 1),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes:         []string{"1", "2"},
 			pod:           &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-filter", UID: types.UID("test-filter")}},
@@ -782,20 +799,11 @@ func TestGenericScheduler(t *testing.T) {
 				cache.AddNode(node)
 			}
 
-			registry := framework.Registry{}
-			// TODO: instantiate the plugins dynamically.
-			plugins := &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{},
-				PreFilter: &schedulerapi.PluginSet{},
-				Filter:    &schedulerapi.PluginSet{},
-				Score:     &schedulerapi.PluginSet{},
-			}
-			var pluginConfigs []schedulerapi.PluginConfig
-			for _, f := range test.registerPlugins {
-				f(&registry, plugins, pluginConfigs)
-			}
 			snapshot := internalcache.NewSnapshot(test.pods, nodes)
-			fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs, framework.WithSnapshotSharedLister(snapshot))
+			fwk, err := st.NewFramework(test.registerPlugins, framework.WithSnapshotSharedLister(snapshot))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			var pvcs []v1.PersistentVolumeClaim
 			pvcs = append(pvcs, test.pvcs...)
@@ -834,18 +842,7 @@ func makeScheduler(nodes []*v1.Node, fns ...st.RegisterPluginFunc) *genericSched
 		cache.AddNode(n)
 	}
 
-	registry := framework.Registry{}
-	// TODO: instantiate the plugins dynamically.
-	plugins := &schedulerapi.Plugins{
-		QueueSort: &schedulerapi.PluginSet{},
-		Filter:    &schedulerapi.PluginSet{},
-	}
-	var pluginConfigs []schedulerapi.PluginConfig
-	for _, f := range fns {
-		f(&registry, plugins, pluginConfigs)
-	}
-	fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs)
-
+	fwk, _ := st.NewFramework(fns)
 	s := NewGenericScheduler(
 		cache,
 		internalqueue.NewSchedulingQueue(nil),
@@ -855,7 +852,6 @@ func makeScheduler(nodes []*v1.Node, fns ...st.RegisterPluginFunc) *genericSched
 		schedulerapi.DefaultPercentageOfNodesToScore, false)
 	cache.UpdateSnapshot(s.(*genericScheduler).nodeInfoSnapshot)
 	return s.(*genericScheduler)
-
 }
 
 func TestFindFitAllError(t *testing.T) {
@@ -865,6 +861,7 @@ func TestFindFitAllError(t *testing.T) {
 		st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 		st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 		st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
+		st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 	)
 
 	_, nodeToStatusMap, err := scheduler.findNodesThatFitPod(context.Background(), framework.NewCycleState(), &v1.Pod{})
@@ -898,6 +895,7 @@ func TestFindFitSomeError(t *testing.T) {
 		st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 		st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
 		st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
+		st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 	)
 
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "1", UID: types.UID("1")}}
@@ -954,25 +952,22 @@ func TestFindFitPredicateCallCounts(t *testing.T) {
 			cache.AddNode(n)
 		}
 
-		registry := framework.Registry{}
 		plugin := fakeFilterPlugin{}
-		registry.Register(queuesort.Name, queuesort.New)
-		registry.Register("FakeFilter", func(_ *runtime.Unknown, fh framework.FrameworkHandle) (framework.Plugin, error) {
-			return &plugin, nil
-		})
-		plugins := &schedulerapi.Plugins{
-			QueueSort: &schedulerapi.PluginSet{
-				Enabled: []schedulerapi.Plugin{{Name: queuesort.Name}},
+		registerFakeFilterFunc := st.RegisterFilterPlugin(
+			"FakeFilter",
+			func(_ *runtime.Unknown, fh framework.FrameworkHandle) (framework.Plugin, error) {
+				return &plugin, nil
 			},
-			Filter: &schedulerapi.PluginSet{
-				Enabled: []schedulerapi.Plugin{{Name: "FakeFilter"}},
-			},
+		)
+		registerPlugins := []st.RegisterPluginFunc{
+			st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+			registerFakeFilterFunc,
+			st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		}
-		pluginConfigs := []schedulerapi.PluginConfig{
-			{Name: queuesort.Name},
-			{Name: "FakeFilter"},
+		fwk, err := st.NewFramework(registerPlugins)
+		if err != nil {
+			t.Fatal(err)
 		}
-		fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs)
 
 		queue := internalqueue.NewSchedulingQueue(nil)
 		scheduler := NewGenericScheduler(
@@ -985,7 +980,7 @@ func TestFindFitPredicateCallCounts(t *testing.T) {
 		cache.UpdateSnapshot(scheduler.nodeInfoSnapshot)
 		queue.UpdateNominatedPodForNode(&v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: types.UID("nominated")}, Spec: v1.PodSpec{Priority: &midPriority}}, "1")
 
-		_, _, err := scheduler.findNodesThatFitPod(context.Background(), framework.NewCycleState(), test.pod)
+		_, _, err = scheduler.findNodesThatFitPod(context.Background(), framework.NewCycleState(), test.pod)
 
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -1115,29 +1110,16 @@ func TestZeroRequest(t *testing.T) {
 
 			snapshot := internalcache.NewSnapshot(test.pods, test.nodes)
 
-			registry := framework.Registry{}
-			// TODO: instantiate the plugins dynamically.
-			plugins := &schedulerapi.Plugins{
-				QueueSort:  &schedulerapi.PluginSet{},
-				Filter:     &schedulerapi.PluginSet{},
-				PostFilter: &schedulerapi.PluginSet{},
-				Score:      &schedulerapi.PluginSet{},
-			}
-			var pluginConfigs []schedulerapi.PluginConfig
 			pluginRegistrations := []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterScorePlugin(noderesources.LeastAllocatedName, noderesources.NewLeastAllocated, 1),
 				st.RegisterScorePlugin(noderesources.BalancedAllocationName, noderesources.NewBalancedAllocation, 1),
 				st.RegisterScorePlugin(defaultpodtopologyspread.Name, defaultpodtopologyspread.New, 1),
 				st.RegisterPostFilterPlugin(defaultpodtopologyspread.Name, defaultpodtopologyspread.New),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			}
-			for _, f := range pluginRegistrations {
-				f(&registry, plugins, pluginConfigs)
-			}
-			fwk, err := framework.NewFramework(
-				registry,
-				plugins,
-				pluginConfigs,
+			fwk, err := st.NewFramework(
+				pluginRegistrations,
 				framework.WithInformerFactory(informerFactory),
 				framework.WithSnapshotSharedLister(snapshot),
 				framework.WithClientSet(client),
@@ -1197,11 +1179,16 @@ func printNodeToVictims(nodeToVictims map[*v1.Node]*extenderv1.Victims) string {
 	return output
 }
 
-func checkPreemptionVictims(expected map[string]map[string]bool, nodeToPods map[*v1.Node]*extenderv1.Victims) error {
+type victims struct {
+	pods             sets.String
+	numPDBViolations int64
+}
+
+func checkPreemptionVictims(expected map[string]victims, nodeToPods map[*v1.Node]*extenderv1.Victims) error {
 	if len(expected) == len(nodeToPods) {
 		for k, victims := range nodeToPods {
-			if expPods, ok := expected[k.Name]; ok {
-				if len(victims.Pods) != len(expPods) {
+			if expVictims, ok := expected[k.Name]; ok {
+				if len(victims.Pods) != len(expVictims.pods) {
 					return fmt.Errorf("unexpected number of pods. expected: %v, got: %v", expected, printNodeToVictims(nodeToPods))
 				}
 				prevPriority := int32(math.MaxInt32)
@@ -1211,9 +1198,12 @@ func checkPreemptionVictims(expected map[string]map[string]bool, nodeToPods map[
 						return fmt.Errorf("pod %v of node %v was not sorted by priority", p.Name, k)
 					}
 					prevPriority = *p.Spec.Priority
-					if _, ok := expPods[p.Name]; !ok {
-						return fmt.Errorf("pod %v was not expected. Expected: %v", p.Name, expPods)
+					if !expVictims.pods.Has(p.Name) {
+						return fmt.Errorf("pod %v was not expected. Expected: %v", p.Name, expVictims.pods)
 					}
+				}
+				if expVictims.numPDBViolations != victims.NumPDBViolations {
+					return fmt.Errorf("unexpected numPDBViolations. expected: %d, got: %d", expVictims.numPDBViolations, victims.NumPDBViolations)
 				}
 			} else {
 				return fmt.Errorf("unexpected machines. expected: %v, got: %v", expected, printNodeToVictims(nodeToPods))
@@ -1293,8 +1283,9 @@ func TestSelectNodesForPreemption(t *testing.T) {
 		nodes                   []string
 		pod                     *v1.Pod
 		pods                    []*v1.Pod
+		pdbs                    []*policy.PodDisruptionBudget
 		filterReturnCode        framework.Code
-		expected                map[string]map[string]bool // Map from node name to a list of pods names which should be preempted.
+		expected                map[string]victims
 		expectedNumFilterCalled int32
 	}{
 		{
@@ -1302,13 +1293,14 @@ func TestSelectNodesForPreemption(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("FalseFilter", NewFalseFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "new", UID: types.UID("new")}, Spec: v1.PodSpec{Priority: &highPriority}},
 			pods: []*v1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{},
+			expected:                map[string]victims{},
 			expectedNumFilterCalled: 2,
 		},
 		{
@@ -1316,13 +1308,14 @@ func TestSelectNodesForPreemption(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "new", UID: types.UID("new")}, Spec: v1.PodSpec{Priority: &highPriority}},
 			pods: []*v1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {}, "machine2": {}},
+			expected:                map[string]victims{"machine1": {}, "machine2": {}},
 			expectedNumFilterCalled: 4,
 		},
 		{
@@ -1330,48 +1323,52 @@ func TestSelectNodesForPreemption(t *testing.T) {
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterFilterPlugin("MatchFilter", NewMatchFilterPlugin),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Priority: &highPriority}},
 			pods: []*v1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {}},
+			expected:                map[string]victims{"machine1": {}},
 			expectedNumFilterCalled: 3,
 		},
 		{
 			name: "a pod that fits on both machines when lower priority pods are preempted",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
 			pods: []*v1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {"a": true}, "machine2": {"b": true}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("a")}, "machine2": {pods: sets.NewString("b")}},
 			expectedNumFilterCalled: 4,
 		},
 		{
 			name: "a pod that would fit on the machines, but other pods running are higher priority",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &lowPriority}},
 			pods: []*v1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{},
+			expected:                map[string]victims{},
 			expectedNumFilterCalled: 2,
 		},
 		{
 			name: "medium priority pod is preempted, but lower priority one stays as it is small",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1379,14 +1376,15 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Containers: smallContainers, Priority: &lowPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "c", UID: types.UID("c")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {"b": true}, "machine2": {"c": true}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("b")}, "machine2": {pods: sets.NewString("c")}},
 			expectedNumFilterCalled: 5,
 		},
 		{
 			name: "mixed priority pods are preempted",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1396,14 +1394,15 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "c", UID: types.UID("c")}, Spec: v1.PodSpec{Containers: mediumContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "d", UID: types.UID("d")}, Spec: v1.PodSpec{Containers: smallContainers, Priority: &highPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "e", UID: types.UID("e")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {"b": true, "c": true}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("b", "c")}},
 			expectedNumFilterCalled: 5,
 		},
 		{
 			name: "mixed priority pods are preempted, pick later StartTime one when priorities are equal",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1413,15 +1412,16 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "c", UID: types.UID("c")}, Spec: v1.PodSpec{Containers: mediumContainers, Priority: &midPriority, NodeName: "machine1"}, Status: v1.PodStatus{StartTime: &startTime20190105}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "d", UID: types.UID("d")}, Spec: v1.PodSpec{Containers: smallContainers, Priority: &highPriority, NodeName: "machine1"}, Status: v1.PodStatus{StartTime: &startTime20190104}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "e", UID: types.UID("e")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority, NodeName: "machine2"}, Status: v1.PodStatus{StartTime: &startTime20190103}}},
-			expected:                map[string]map[string]bool{"machine1": {"a": true, "c": true}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("a", "c")}},
 			expectedNumFilterCalled: 5,
 		},
 		{
 			name: "pod with anti-affinity is preempted",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
-				st.RegisterFilterPlugin(interpodaffinity.Name, interpodaffinity.New),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterPluginAsExtensions(interpodaffinity.Name, interpodaffinity.New, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod: &v1.Pod{ObjectMeta: metav1.ObjectMeta{
@@ -1448,7 +1448,7 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Containers: smallContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "d", UID: types.UID("d")}, Spec: v1.PodSpec{Containers: smallContainers, Priority: &highPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "e", UID: types.UID("e")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority, NodeName: "machine2"}}},
-			expected:                map[string]map[string]bool{"machine1": {"a": true}, "machine2": {}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("a")}, "machine2": {}},
 			expectedNumFilterCalled: 4,
 		},
 		{
@@ -1457,11 +1457,11 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					1,
 					podtopologyspread.New,
 					"PreFilter",
 					"Filter",
 				),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"node-a/zone1", "node-b/zone1", "node-x/zone2"},
 			pod: &v1.Pod{
@@ -1528,9 +1528,9 @@ func TestSelectNodesForPreemption(t *testing.T) {
 					Status:     v1.PodStatus{Phase: v1.PodRunning},
 				},
 			},
-			expected: map[string]map[string]bool{
-				"node-a": {"pod-a2": true},
-				"node-b": {"pod-b1": true},
+			expected: map[string]victims{
+				"node-a": {pods: sets.NewString("pod-a2")},
+				"node-b": {pods: sets.NewString("pod-b1")},
 			},
 			expectedNumFilterCalled: 6,
 		},
@@ -1538,7 +1538,8 @@ func TestSelectNodesForPreemption(t *testing.T) {
 			name: "get Unschedulable in the preemption phase when the filter plugins filtering the nodes",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1546,8 +1547,25 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine1"}},
 				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &midPriority, NodeName: "machine2"}}},
 			filterReturnCode:        framework.Unschedulable,
-			expected:                map[string]map[string]bool{},
+			expected:                map[string]victims{},
 			expectedNumFilterCalled: 2,
+		},
+		{
+			name: "preemption with violation of same pdb",
+			registerPlugins: []st.RegisterPluginFunc{
+				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			},
+			nodes: []string{"machine1"},
+			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", UID: types.UID("pod1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
+			pods: []*v1.Pod{
+				{ObjectMeta: metav1.ObjectMeta{Name: "a", UID: types.UID("a"), Labels: map[string]string{"app": "foo"}}, Spec: v1.PodSpec{Containers: mediumContainers, Priority: &midPriority, NodeName: "machine1"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "b", UID: types.UID("b"), Labels: map[string]string{"app": "foo"}}, Spec: v1.PodSpec{Containers: mediumContainers, Priority: &midPriority, NodeName: "machine1"}}},
+			pdbs: []*policy.PodDisruptionBudget{
+				{Spec: policy.PodDisruptionBudgetSpec{Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}}}, Status: policy.PodDisruptionBudgetStatus{DisruptionsAllowed: 1}}},
+			expected:                map[string]victims{"machine1": {pods: sets.NewString("a", "b"), numPDBViolations: 1}},
+			expectedNumFilterCalled: 3,
 		},
 	}
 	labelKeys := []string{"hostname", "zone", "region"}
@@ -1579,14 +1597,6 @@ func TestSelectNodesForPreemption(t *testing.T) {
 				nodes = append(nodes, node)
 			}
 
-			registry := framework.Registry{}
-			// TODO: instantiate the plugins dynamically.
-			plugins := &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{},
-				PreFilter: &schedulerapi.PluginSet{},
-				Filter:    &schedulerapi.PluginSet{},
-			}
-			var pluginConfigs []schedulerapi.PluginConfig
 			// For each test, prepend a FakeFilterPlugin.
 			fakePlugin := fakeFilterPlugin{}
 			fakePlugin.failedNodeReturnCodeMap = filterFailedNodeReturnCodeMap
@@ -1596,14 +1606,13 @@ func TestSelectNodesForPreemption(t *testing.T) {
 					return &fakePlugin, nil
 				},
 			)
-			registerFakeFilterFunc(&registry, plugins, pluginConfigs)
-			// Next, register other filter plugins defined in test struct.
-			for _, f := range test.registerPlugins {
-				f(&registry, plugins, pluginConfigs)
-			}
+			registerPlugins := append([]st.RegisterPluginFunc{registerFakeFilterFunc}, test.registerPlugins...)
 			// Use a real snapshot since it's needed in some Filter Plugin (e.g., PodAffinity)
 			snapshot := internalcache.NewSnapshot(test.pods, nodes)
-			fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs, framework.WithSnapshotSharedLister(snapshot))
+			fwk, err := st.NewFramework(registerPlugins, framework.WithSnapshotSharedLister(snapshot))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			scheduler := NewGenericScheduler(
 				nil,
@@ -1631,7 +1640,7 @@ func TestSelectNodesForPreemption(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			nodeToPods, err := g.selectNodesForPreemption(context.Background(), state, test.pod, nodeInfos, nil)
+			nodeToPods, err := g.selectNodesForPreemption(context.Background(), state, test.pod, nodeInfos, test.pdbs)
 			if err != nil {
 				t.Error(err)
 			}
@@ -1661,7 +1670,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "No node needs preemption",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1673,7 +1683,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "a pod that fits on both machines when lower priority pods are preempted",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1687,7 +1698,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "a pod that fits on a machine with no preemption",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: largeContainers, Priority: &highPriority}},
@@ -1701,7 +1713,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "machine with min highest priority pod is picked",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1721,7 +1734,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "when highest priorities are the same, minimum sum of priorities is picked",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1741,7 +1755,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "when highest priority and sum are the same, minimum number of pods is picked",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1766,7 +1781,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "sum of adjusted priorities is considered",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1788,7 +1804,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "non-overlapping lowest high priority, sum priorities, and number of pods",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3", "machine4"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", UID: types.UID("pod1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &veryHighPriority}},
@@ -1815,7 +1832,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "same priority, same number of victims, different start time for each machine's pod",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1835,7 +1853,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "same priority, same number of victims, different start time for all pods",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1855,7 +1874,8 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 			name: "different priority, same number of victims, different start time for all pods",
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			nodes: []string{"machine1", "machine2", "machine3"},
 			pod:   &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "machine1", UID: types.UID("machine1")}, Spec: v1.PodSpec{Containers: veryLargeContainers, Priority: &highPriority}},
@@ -1879,17 +1899,10 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 				nodes = append(nodes, makeNode(n, schedutil.DefaultMilliCPURequest*5, schedutil.DefaultMemoryRequest*5))
 			}
 			snapshot := internalcache.NewSnapshot(test.pods, nodes)
-			registry := framework.Registry{}
-			// TODO: instantiate the plugins dynamically.
-			plugins := &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{},
-				Filter:    &schedulerapi.PluginSet{},
+			fwk, err := st.NewFramework(test.registerPlugins, framework.WithSnapshotSharedLister(snapshot))
+			if err != nil {
+				t.Fatal(err)
 			}
-			var pluginConfigs []schedulerapi.PluginConfig
-			for _, f := range test.registerPlugins {
-				f(&registry, plugins, pluginConfigs)
-			}
-			fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs, framework.WithSnapshotSharedLister(snapshot))
 
 			g := &genericScheduler{
 				framework:        fwk,
@@ -1902,6 +1915,11 @@ func TestPickOneNodeForPreemption(t *testing.T) {
 				t.Fatal(err)
 			}
 			state := framework.NewCycleState()
+			// Some tests rely on PreFilter plugin to compute its CycleState.
+			preFilterStatus := fwk.RunPreFilterPlugins(context.Background(), state, test.pod)
+			if !preFilterStatus.IsSuccess() {
+				t.Errorf("Unexpected preFilterStatus: %v", preFilterStatus)
+			}
 			candidateNodes, _ := g.selectNodesForPreemption(context.Background(), state, test.pod, nodeInfos, nil)
 			node := pickOneNodeForPreemption(candidateNodes)
 			found := false
@@ -2075,7 +2093,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine1",
 			expectedPods: []string{"m1.1", "m1.2"},
@@ -2095,7 +2114,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine3",
 			expectedPods: []string{},
@@ -2176,11 +2196,11 @@ func TestPreempt(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					1,
 					podtopologyspread.New,
 					"PreFilter",
 					"Filter",
 				),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "node-b",
 			expectedPods: []string{"pod-b1"},
@@ -2208,7 +2228,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine1",
 			expectedPods: []string{"m1.1", "m1.2"},
@@ -2233,7 +2254,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "",
 			expectedPods: []string{},
@@ -2262,7 +2284,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine1",
 			expectedPods: []string{"m1.1", "m1.2"},
@@ -2291,7 +2314,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine3",
 			expectedPods: []string{},
@@ -2311,7 +2335,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "",
 			expectedPods: nil,
@@ -2331,7 +2356,8 @@ func TestPreempt(t *testing.T) {
 			},
 			registerPlugins: []st.RegisterPluginFunc{
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-				st.RegisterFilterPlugin(noderesources.FitName, noderesources.NewFit),
+				st.RegisterPluginAsExtensions(noderesources.FitName, noderesources.NewFit, "Filter", "PreFilter"),
+				st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			},
 			expectedNode: "machine1",
 			expectedPods: []string{"m1.1", "m1.2"},
@@ -2380,19 +2406,11 @@ func TestPreempt(t *testing.T) {
 				extenders = append(extenders, extender)
 			}
 
-			registry := framework.Registry{}
-			// TODO: instantiate the plugins dynamically.
-			plugins := &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{},
-				PreFilter: &schedulerapi.PluginSet{},
-				Filter:    &schedulerapi.PluginSet{},
-			}
-			var pluginConfigs []schedulerapi.PluginConfig
-			for _, f := range test.registerPlugins {
-				f(&registry, plugins, pluginConfigs)
-			}
 			snapshot := internalcache.NewSnapshot(test.pods, nodes)
-			fwk, _ := framework.NewFramework(registry, plugins, pluginConfigs, framework.WithSnapshotSharedLister(snapshot))
+			fwk, err := st.NewFramework(test.registerPlugins, framework.WithSnapshotSharedLister(snapshot))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			scheduler := NewGenericScheduler(
 				cache,
@@ -2533,6 +2551,7 @@ func TestFairEvaluationForNodes(t *testing.T) {
 		nodes,
 		st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 		st.RegisterFilterPlugin("TrueFilter", NewTrueFilterPlugin),
+		st.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 	)
 	// To make numAllNodes % nodesToFind != 0
 	g.percentageOfNodesToScore = 30

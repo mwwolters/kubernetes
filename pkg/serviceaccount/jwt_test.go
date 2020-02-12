@@ -64,6 +64,7 @@ WwIDAQAB
 //   3. URLSafe Base64-encoding the sha bytes
 const rsaKeyID = "JHJehTTTZlsspKHT-GaJxK7Kd1NQgZJu3fyK6K_QDYU"
 
+// Fake value for testing.
 const rsaPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEA249XwEo9k4tM8fMxV7zxOhcrP+WvXn917koM5Qr2ZXs4vo26
 e4ytdlrV0bQ9SlcLpQVSYjIxNfhTZdDt+ecIzshKuv1gKIxbbLQMOuK1eA/4HALy
@@ -94,6 +95,7 @@ X024wzbiw1q07jFCyfQmODzURAx1VNT7QVUMdz/N8vy47/H40AZJ
 `
 
 // openssl ecparam -name prime256v1 -genkey -noout -out ecdsa256.pem
+// Fake value for testing.
 const ecdsaPrivateKey = `-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIEZmTmUhuanLjPA2CLquXivuwBDHTt5XYwgIr/kA1LtRoAoGCCqGSM49
 AwEHoUQDQgAEH6cuzP8XuD5wal6wf9M6xDljTOPLX2i8uIp/C/ASqiIGUeeKQtX0
@@ -304,13 +306,13 @@ func TestTokenGenerateAndValidate(t *testing.T) {
 		getter := serviceaccountcontroller.NewGetterFromClient(
 			tc.Client,
 			v1listers.NewSecretLister(newIndexer(func(namespace, name string) (interface{}, error) {
-				return tc.Client.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
+				return tc.Client.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			})),
 			v1listers.NewServiceAccountLister(newIndexer(func(namespace, name string) (interface{}, error) {
-				return tc.Client.CoreV1().ServiceAccounts(namespace).Get(name, metav1.GetOptions{})
+				return tc.Client.CoreV1().ServiceAccounts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			})),
 			v1listers.NewPodLister(newIndexer(func(namespace, name string) (interface{}, error) {
-				return tc.Client.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+				return tc.Client.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			})),
 		)
 		authn := serviceaccount.JWTTokenAuthenticator(serviceaccount.LegacyIssuer, tc.Keys, auds, serviceaccount.NewLegacyValidator(tc.Client != nil, getter))

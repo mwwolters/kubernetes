@@ -54,7 +54,6 @@ go_library(
         "//vendor/github.com/coreos/go-systemd/util:go_default_library",
         "//vendor/github.com/onsi/ginkgo:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
-        "//vendor/golang.org/x/net/context:go_default_library",
         "//vendor/k8s.io/klog:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
@@ -194,6 +193,7 @@ go_test(
         "//test/e2e/framework/metrics:go_default_library",
         "//test/e2e/framework/node:go_default_library",
         "//test/e2e/framework/pod:go_default_library",
+        "//test/e2e/framework/skipper:go_default_library",
         "//test/e2e/framework/testfiles:go_default_library",
         "//test/e2e/framework/volume:go_default_library",
         "//test/e2e_node/perf/workloads:go_default_library",

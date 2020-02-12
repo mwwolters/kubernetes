@@ -14,7 +14,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20160516000752-02826c3e7903
 	github.com/golang/protobuf v1.3.2
 	github.com/google/btree v1.0.0 // indirect
-	github.com/google/gofuzz v1.0.0
+	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.1
 	github.com/googleapis/gnostic v0.1.0
 	github.com/gophercloud/gophercloud v0.1.0
@@ -31,8 +31,8 @@ require (
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/klog v1.0.0
-	k8s.io/utils v0.0.0-20191217005138-9e5e9d854fcc
-	sigs.k8s.io/yaml v1.1.0
+	k8s.io/utils v0.0.0-20200117235808-5f6fbceb4c31
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (

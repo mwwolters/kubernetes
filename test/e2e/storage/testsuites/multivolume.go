@@ -17,6 +17,7 @@ limitations under the License.
 package testsuites
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -404,7 +405,7 @@ func testAccessMultipleVolumes(f *framework.Framework, cs clientset.Interface, n
 		utils.CheckReadFromPath(f, pod, *pvc.Spec.VolumeMode, path, byteLen, writeSeedBase+int64(i))
 	}
 
-	pod, err = cs.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
+	pod, err = cs.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 	framework.ExpectNoError(err, "get pod")
 	return pod.Spec.NodeName
 }
@@ -457,7 +458,7 @@ func TestConcurrentAccessToSingleVolume(f *framework.Framework, cs clientset.Int
 			framework.ExpectNoError(e2epod.DeletePodWithWait(cs, pod))
 		}()
 		framework.ExpectNoError(err)
-		pod, err = cs.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
+		pod, err = cs.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		pods = append(pods, pod)
 		framework.ExpectNoError(err, fmt.Sprintf("get pod%d", index))
 		actualNodeName := pod.Spec.NodeName
@@ -574,7 +575,7 @@ func ensureTopologyRequirements(nodeSelection *e2epod.NodeSelection, nodes *v1.N
 		}
 	}
 	if len(suitableTopologies) == 0 {
-		framework.Skipf("No topology with at least %d nodes found - skipping", minCount)
+		e2eskipper.Skipf("No topology with at least %d nodes found - skipping", minCount)
 	}
 	// Take the first suitable topology
 	e2epod.SetNodeAffinityTopologyRequirement(nodeSelection, suitableTopologies[0])

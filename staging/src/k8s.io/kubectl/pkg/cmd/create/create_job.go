@@ -17,6 +17,7 @@ limitations under the License.
 package create
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -132,7 +133,7 @@ func (o *CreateJobOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args 
 	o.Builder = f.NewBuilder()
 	o.Cmd = cmd
 
-	o.DryRun = cmdutil.GetDryRunFlag(cmd)
+	o.DryRun = cmdutil.GetClientSideDryRun(cmd)
 	if o.DryRun {
 		o.PrintFlags.Complete("%s (dry run)")
 	}
@@ -192,7 +193,7 @@ func (o *CreateJobOptions) Run() error {
 	}
 	if !o.DryRun {
 		var err error
-		job, err = o.Client.Jobs(o.Namespace).Create(job)
+		job, err = o.Client.Jobs(o.Namespace).Create(context.TODO(), job, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create job: %v", err)
 		}

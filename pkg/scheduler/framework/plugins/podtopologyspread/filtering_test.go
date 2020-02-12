@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 	"k8s.io/kubernetes/pkg/scheduler/internal/cache"
+	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 )
 
@@ -491,7 +492,7 @@ func TestPreFilterStateAddPod(t *testing.T) {
 			},
 		},
 		{
-			name: "add a pod with mis-matched namespace doesn't change topologyKeyToMinPodsMap",
+			name: "add a pod in a different namespace doesn't change topologyKeyToMinPodsMap",
 			preemptor: st.MakePod().Name("p").Label("foo", "").
 				SpreadConstraint(1, "node", hardSpread, st.MakeLabelSelector().Exists("foo").Obj()).
 				Obj(),
@@ -1036,7 +1037,7 @@ func TestSingleConstraint(t *testing.T) {
 			},
 		},
 		{
-			name: "existing pods with mis-matched namespace doesn't count",
+			name: "existing pods in a different namespace do not count",
 			pod: st.MakePod().Name("p").Label("foo", "").SpreadConstraint(
 				1, "zone", hardSpread, st.MakeLabelSelector().Exists("foo").Obj(),
 			).Obj(),
@@ -1223,6 +1224,24 @@ func TestSingleConstraint(t *testing.T) {
 				"node-b": true, // in real case, it's false
 				"node-x": true, // in real case, it's false
 				"node-y": false,
+			},
+		},
+		{
+			name: "terminating Pods should be excluded",
+			pod: st.MakePod().Name("p").Label("foo", "").SpreadConstraint(
+				1, "node", hardSpread, st.MakeLabelSelector().Exists("foo").Obj(),
+			).Obj(),
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("node", "node-b").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a").Node("node-a").Label("foo", "").Terminating().Obj(),
+				st.MakePod().Name("p-b").Node("node-b").Label("foo", "").Obj(),
+			},
+			fits: map[string]bool{
+				"node-a": true,
+				"node-b": false,
 			},
 		},
 	}
@@ -1444,5 +1463,19 @@ func TestMultipleConstraints(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPreFilterDisabled(t *testing.T) {
+	pod := &v1.Pod{}
+	nodeInfo := schedulernodeinfo.NewNodeInfo()
+	node := v1.Node{}
+	nodeInfo.SetNode(&node)
+	p := &PodTopologySpread{}
+	cycleState := framework.NewCycleState()
+	gotStatus := p.Filter(context.Background(), cycleState, pod, nodeInfo)
+	wantStatus := framework.NewStatus(framework.Error, `error reading "PreFilterPodTopologySpread" from cycleState: not found`)
+	if !reflect.DeepEqual(gotStatus, wantStatus) {
+		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
 }

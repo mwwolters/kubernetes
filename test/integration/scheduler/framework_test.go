@@ -30,6 +30,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	scheduler "k8s.io/kubernetes/pkg/scheduler"
 	schedulerconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 	schedulernodeinfo "k8s.io/kubernetes/pkg/scheduler/nodeinfo"
 )
@@ -871,7 +872,9 @@ func TestBindPlugin(t *testing.T) {
 			Enabled: []schedulerconfig.Plugin{{Name: unreservePlugin.Name()}},
 		},
 		Bind: &schedulerconfig.PluginSet{
-			Enabled: []schedulerconfig.Plugin{{Name: bindPlugin1.Name()}, {Name: bindPlugin2.Name()}},
+			// Put DefaultBinder last.
+			Enabled:  []schedulerconfig.Plugin{{Name: bindPlugin1.Name()}, {Name: bindPlugin2.Name()}, {Name: defaultbinder.Name}},
+			Disabled: []schedulerconfig.Plugin{{Name: defaultbinder.Name}},
 		},
 		PostBind: &schedulerconfig.PluginSet{
 			Enabled: []schedulerconfig.Plugin{{Name: postBindPlugin.Name()}},
@@ -948,7 +951,7 @@ func TestBindPlugin(t *testing.T) {
 				t.Errorf("test #%v: Expected the pod to be scheduled. error: %v", i, err)
 				continue
 			}
-			pod, err = testCtx.clientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
+			pod, err = testCtx.clientSet.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			if err != nil {
 				t.Errorf("can't get pod: %v", err)
 			}

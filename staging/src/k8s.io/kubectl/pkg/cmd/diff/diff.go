@@ -56,7 +56,18 @@ var (
 
 		KUBECTL_EXTERNAL_DIFF environment variable can be used to select your own
 		diff command. By default, the "diff" command available in your path will be
-		run with "-u" (unified diff) and "-N" (treat absent files as empty) options.`))
+		run with "-u" (unified diff) and "-N" (treat absent files as empty) options.
+		
+		Exit status:
+		 0
+		No differences were found.
+		 1
+		Differences were found.
+		 >1
+		Kubectl or diff failed with an error.
+
+		Note: KUBECTL_EXTERNAL_DIFF, if used, is expected to follow that convention.`))
+
 	diffExample = templates.Examples(i18n.T(`
 		# Diff resources included in pod.json.
 		kubectl diff -f pod.json
@@ -67,6 +78,15 @@ var (
 
 // Number of times we try to diff before giving-up
 const maxRetries = 4
+
+// diffError returns the ExitError if the status code is less than 1,
+// nil otherwise.
+func diffError(err error) exec.ExitError {
+	if err, ok := err.(exec.ExitError); ok && err.ExitStatus() <= 1 {
+		return err
+	}
+	return nil
+}
 
 type DiffOptions struct {
 	FilenameOptions resource.FilenameOptions
@@ -109,9 +129,20 @@ func NewCmdDiff(f cmdutil.Factory, streams genericclioptions.IOStreams) *cobra.C
 		Long:                  diffLong,
 		Example:               diffExample,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(options.Complete(f, cmd))
-			cmdutil.CheckErr(validateArgs(cmd, args))
-			cmdutil.CheckErr(options.Run())
+			cmdutil.CheckDiffErr(options.Complete(f, cmd))
+			cmdutil.CheckDiffErr(validateArgs(cmd, args))
+			// `kubectl diff` propagates the error code from
+			// diff or `KUBECTL_EXTERNAL_DIFF`. Also, we
+			// don't want to print an error if diff returns
+			// error code 1, which simply means that changes
+			// were found. We also don't want kubectl to
+			// return 1 if there was a problem.
+			if err := options.Run(); err != nil {
+				if exitErr := diffError(err); exitErr != nil {
+					os.Exit(exitErr.ExitStatus())
+				}
+				cmdutil.CheckDiffErr(err)
+			}
 		},
 	}
 
@@ -150,6 +181,11 @@ func (d *DiffProgram) getCommand(args ...string) (string, exec.Cmd) {
 func (d *DiffProgram) Run(from, to string) error {
 	diff, cmd := d.getCommand(from, to)
 	if err := cmd.Run(); err != nil {
+		// Let's not wrap diff errors, or we won't be able to
+		// differentiate them later.
+		if diffErr := diffError(err); diffErr != nil {
+			return diffErr
+		}
 		return fmt.Errorf("failed to run %q: %v", diff, err)
 	}
 	return nil

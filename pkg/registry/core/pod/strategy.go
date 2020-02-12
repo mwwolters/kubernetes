@@ -34,10 +34,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	podutil "k8s.io/kubernetes/pkg/api/pod"
 	api "k8s.io/kubernetes/pkg/apis/core"
@@ -147,6 +149,7 @@ type podStatusStrategy struct {
 	podStrategy
 }
 
+// StatusStrategy wraps and exports the used podStrategy for the storage package.
 var StatusStrategy = podStatusStrategy{Strategy}
 
 func (podStatusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
@@ -168,6 +171,7 @@ type podEphemeralContainersStrategy struct {
 	podStrategy
 }
 
+// EphemeralContainersStrategy wraps and exports the used podStrategy for the storage package.
 var EphemeralContainersStrategy = podEphemeralContainersStrategy{Strategy}
 
 func (podEphemeralContainersStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -180,7 +184,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	if !ok {
 		return nil, nil, fmt.Errorf("not a pod")
 	}
-	return labels.Set(pod.ObjectMeta.Labels), PodToSelectableFields(pod), nil
+	return labels.Set(pod.ObjectMeta.Labels), ToSelectableFields(pod), nil
 }
 
 // MatchPod returns a generic matcher for a given label and field selector.
@@ -198,9 +202,28 @@ func NodeNameTriggerFunc(obj runtime.Object) string {
 	return obj.(*api.Pod).Spec.NodeName
 }
 
-// PodToSelectableFields returns a field set that represents the object
+// NodeNameIndexFunc return value spec.nodename of given object.
+func NodeNameIndexFunc(obj interface{}) ([]string, error) {
+	pod, ok := obj.(*api.Pod)
+	if !ok {
+		return nil, fmt.Errorf("not a pod")
+	}
+	return []string{pod.Spec.NodeName}, nil
+}
+
+// Indexers returns the indexers for pod storage.
+func Indexers() *cache.Indexers {
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.SelectorIndex) {
+		return &cache.Indexers{
+			storage.FieldIndex("spec.nodeName"): NodeNameIndexFunc,
+		}
+	}
+	return nil
+}
+
+// ToSelectableFields returns a field set that represents the object
 // TODO: fields are not labels, and the validation rules for them do not apply.
-func PodToSelectableFields(pod *api.Pod) fields.Set {
+func ToSelectableFields(pod *api.Pod) fields.Set {
 	// The purpose of allocation with a given number of elements is to reduce
 	// amount of allocations needed to create the fields.Set. If you add any
 	// field here or the number of object-meta related fields changes, this should
@@ -226,7 +249,7 @@ type ResourceGetter interface {
 	Get(context.Context, string, *metav1.GetOptions) (runtime.Object, error)
 }
 
-func getPod(getter ResourceGetter, ctx context.Context, name string) (*api.Pod, error) {
+func getPod(ctx context.Context, getter ResourceGetter, name string) (*api.Pod, error) {
 	obj, err := getter.Get(ctx, name, &metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -251,7 +274,7 @@ func getPodIP(pod *api.Pod) string {
 }
 
 // ResourceLocation returns a URL to which one can send traffic for the specified pod.
-func ResourceLocation(getter ResourceGetter, rt http.RoundTripper, ctx context.Context, id string) (*url.URL, http.RoundTripper, error) {
+func ResourceLocation(ctx context.Context, getter ResourceGetter, rt http.RoundTripper, id string) (*url.URL, http.RoundTripper, error) {
 	// Allow ID as "podname" or "podname:port" or "scheme:podname:port".
 	// If port is not specified, try to use the first defined port on the pod.
 	scheme, name, port, valid := utilnet.SplitSchemeNamePort(id)
@@ -259,7 +282,7 @@ func ResourceLocation(getter ResourceGetter, rt http.RoundTripper, ctx context.C
 		return nil, nil, errors.NewBadRequest(fmt.Sprintf("invalid pod request %q", id))
 	}
 
-	pod, err := getPod(getter, ctx, name)
+	pod, err := getPod(ctx, getter, name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -301,13 +324,12 @@ func getContainerNames(containers []api.Container) string {
 // LogLocation returns the log URL for a pod container. If opts.Container is blank
 // and only one container is present in the pod, that container is used.
 func LogLocation(
-	getter ResourceGetter,
+	ctx context.Context, getter ResourceGetter,
 	connInfo client.ConnectionInfoGetter,
-	ctx context.Context,
 	name string,
 	opts *api.PodLogOptions,
 ) (*url.URL, http.RoundTripper, error) {
-	pod, err := getPod(getter, ctx, name)
+	pod, err := getPod(ctx, getter, name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -423,37 +445,37 @@ func streamParams(params url.Values, opts runtime.Object) error {
 // AttachLocation returns the attach URL for a pod container. If opts.Container is blank
 // and only one container is present in the pod, that container is used.
 func AttachLocation(
+	ctx context.Context,
 	getter ResourceGetter,
 	connInfo client.ConnectionInfoGetter,
-	ctx context.Context,
 	name string,
 	opts *api.PodAttachOptions,
 ) (*url.URL, http.RoundTripper, error) {
-	return streamLocation(getter, connInfo, ctx, name, opts, opts.Container, "attach")
+	return streamLocation(ctx, getter, connInfo, name, opts, opts.Container, "attach")
 }
 
 // ExecLocation returns the exec URL for a pod container. If opts.Container is blank
 // and only one container is present in the pod, that container is used.
 func ExecLocation(
+	ctx context.Context,
 	getter ResourceGetter,
 	connInfo client.ConnectionInfoGetter,
-	ctx context.Context,
 	name string,
 	opts *api.PodExecOptions,
 ) (*url.URL, http.RoundTripper, error) {
-	return streamLocation(getter, connInfo, ctx, name, opts, opts.Container, "exec")
+	return streamLocation(ctx, getter, connInfo, name, opts, opts.Container, "exec")
 }
 
 func streamLocation(
+	ctx context.Context,
 	getter ResourceGetter,
 	connInfo client.ConnectionInfoGetter,
-	ctx context.Context,
 	name string,
 	opts runtime.Object,
 	container,
 	path string,
 ) (*url.URL, http.RoundTripper, error) {
-	pod, err := getPod(getter, ctx, name)
+	pod, err := getPod(ctx, getter, name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -489,13 +511,13 @@ func streamLocation(
 
 // PortForwardLocation returns the port-forward URL for a pod.
 func PortForwardLocation(
+	ctx context.Context,
 	getter ResourceGetter,
 	connInfo client.ConnectionInfoGetter,
-	ctx context.Context,
 	name string,
 	opts *api.PodPortForwardOptions,
 ) (*url.URL, http.RoundTripper, error) {
-	pod, err := getPod(getter, ctx, name)
+	pod, err := getPod(ctx, getter, name)
 	if err != nil {
 		return nil, nil, err
 	}

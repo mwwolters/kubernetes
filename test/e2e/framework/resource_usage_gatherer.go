@@ -294,12 +294,11 @@ func getStatsSummary(c clientset.Interface, nodeName string) (*kubeletstatsv1alp
 	defer cancel()
 
 	data, err := c.CoreV1().RESTClient().Get().
-		Context(ctx).
 		Resource("nodes").
 		SubResource("proxy").
 		Name(fmt.Sprintf("%v:%v", nodeName, ports.KubeletPort)).
 		Suffix("stats/summary").
-		Do().Raw()
+		Do(ctx).Raw()
 
 	if err != nil {
 		return nil, err
@@ -398,7 +397,7 @@ func NewResourceUsageGatherer(c clientset.Interface, options ResourceGathererOpt
 	// Tracks kube-system pods if no valid PodList is passed in.
 	var err error
 	if pods == nil {
-		pods, err = c.CoreV1().Pods("kube-system").List(metav1.ListOptions{})
+		pods, err = c.CoreV1().Pods("kube-system").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			Logf("Error while listing Pods: %v", err)
 			return nil, err
@@ -422,7 +421,7 @@ func NewResourceUsageGatherer(c clientset.Interface, options ResourceGathererOpt
 			dnsNodes[pod.Spec.NodeName] = true
 		}
 	}
-	nodeList, err := c.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodeList, err := c.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		Logf("Error while listing Nodes: %v", err)
 		return nil, err

@@ -17,6 +17,7 @@ limitations under the License.
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -25,8 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
@@ -42,6 +44,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/core"
 	frameworkplugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
@@ -121,7 +124,7 @@ func (c *Configurator) create(extenders []core.SchedulerExtender) (*Scheduler, e
 		framework.WithVolumeBinder(c.volumeBinder),
 	)
 	if err != nil {
-		klog.Fatalf("error initializing the scheduling framework: %v", err)
+		return nil, fmt.Errorf("initializing the scheduling framework: %v", err)
 	}
 
 	podQueue := internalqueue.NewSchedulingQueue(
@@ -168,20 +171,17 @@ func (c *Configurator) create(extenders []core.SchedulerExtender) (*Scheduler, e
 // createFromProvider creates a scheduler from the name of a registered algorithm provider.
 func (c *Configurator) createFromProvider(providerName string) (*Scheduler, error) {
 	klog.V(2).Infof("Creating scheduler from algorithm provider '%v'", providerName)
-	r := algorithmprovider.NewRegistry(int64(c.hardPodAffinitySymmetricWeight))
-	provider, exist := r[providerName]
+	r := algorithmprovider.NewRegistry()
+	defaultPlugins, exist := r[providerName]
 	if !exist {
 		return nil, fmt.Errorf("algorithm provider %q is not registered", providerName)
 	}
 
 	// Combine the provided plugins with the ones from component config.
-	var defaultPlugins schedulerapi.Plugins
-	defaultPlugins.Append(provider.FrameworkPlugins)
 	defaultPlugins.Apply(c.plugins)
-	c.plugins = &defaultPlugins
+	c.plugins = defaultPlugins
 
-	var pluginConfig []schedulerapi.PluginConfig
-	pluginConfig = append(pluginConfig, provider.FrameworkPluginConfig...)
+	pluginConfig := []schedulerapi.PluginConfig{c.interPodAffinityPluginConfig()}
 	pluginConfig = append(pluginConfig, c.pluginConfig...)
 	c.pluginConfig = pluginConfig
 
@@ -267,12 +267,8 @@ func (c *Configurator) createFromConfig(policy schedulerapi.Policy) (*Scheduler,
 
 	klog.V(2).Infof("Creating scheduler with fit predicates '%v' and priority functions '%v'", predicateKeys, priorityKeys)
 
-	if c.hardPodAffinitySymmetricWeight < 1 || c.hardPodAffinitySymmetricWeight > 100 {
-		return nil, fmt.Errorf("invalid hardPodAffinitySymmetricWeight: %d, must be in the range 1-100", c.hardPodAffinitySymmetricWeight)
-	}
-
 	args.InterPodAffinityArgs = &interpodaffinity.Args{
-		HardPodAffinityWeight: c.hardPodAffinitySymmetricWeight,
+		HardPodAffinityWeight: &c.hardPodAffinitySymmetricWeight,
 	}
 
 	pluginsForPredicates, pluginConfigForPredicates, err := getPredicateConfigs(predicateKeys, lr, args)
@@ -287,10 +283,14 @@ func (c *Configurator) createFromConfig(policy schedulerapi.Policy) (*Scheduler,
 	// Combine all framework configurations. If this results in any duplication, framework
 	// instantiation should fail.
 	var defaultPlugins schedulerapi.Plugins
-	// "PrioritySort" is neither a predicate nor priority before. We make it as the default QueueSort plugin.
+	// "PrioritySort" and "DefaultBinder" were neither predicates nor priorities
+	// before. We add them by default.
 	defaultPlugins.Append(&schedulerapi.Plugins{
 		QueueSort: &schedulerapi.PluginSet{
 			Enabled: []schedulerapi.Plugin{{Name: queuesort.Name}},
+		},
+		Bind: &schedulerapi.PluginSet{
+			Enabled: []schedulerapi.Plugin{{Name: defaultbinder.Name}},
 		},
 	})
 	defaultPlugins.Append(pluginsForPredicates)
@@ -305,6 +305,15 @@ func (c *Configurator) createFromConfig(policy schedulerapi.Policy) (*Scheduler,
 	c.pluginConfig = pluginConfig
 
 	return c.create(extenders)
+}
+
+func (c *Configurator) interPodAffinityPluginConfig() schedulerapi.PluginConfig {
+	return schedulerapi.PluginConfig{
+		Name: interpodaffinity.Name,
+		Args: runtime.Unknown{
+			Raw: []byte(fmt.Sprintf(`{"hardPodAffinityWeight":%d}`, c.hardPodAffinitySymmetricWeight)),
+		},
+	}
 }
 
 // getPriorityConfigs returns priorities configuration: ones that will run as priorities and ones that will run
@@ -414,7 +423,7 @@ func MakeDefaultErrorFunc(client clientset.Interface, podQueue internalqueue.Sch
 					nodeName := errStatus.Status().Details.Name
 					// when node is not found, We do not remove the node right away. Trying again to get
 					// the node and if the node is still not found, then remove it from the scheduler cache.
-					_, err := client.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+					_, err := client.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 					if err != nil && errors.IsNotFound(err) {
 						node := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: nodeName}}
 						if err := schedulerCache.RemoveNode(&node); err != nil {
@@ -431,7 +440,7 @@ func MakeDefaultErrorFunc(client clientset.Interface, podQueue internalqueue.Sch
 		// Retry asynchronously.
 		// Note that this is extremely rudimentary and we need a more real error handling path.
 		go func() {
-			defer runtime.HandleCrash()
+			defer utilruntime.HandleCrash()
 			podID := types.NamespacedName{
 				Namespace: pod.Namespace,
 				Name:      pod.Name,
@@ -443,7 +452,7 @@ func MakeDefaultErrorFunc(client clientset.Interface, podQueue internalqueue.Sch
 			// Get the pod again; it may have changed/been scheduled already.
 			getBackoff := initialGetBackoff
 			for {
-				pod, err := client.CoreV1().Pods(podID.Namespace).Get(podID.Name, metav1.GetOptions{})
+				pod, err := client.CoreV1().Pods(podID.Namespace).Get(context.TODO(), podID.Name, metav1.GetOptions{})
 				if err == nil {
 					if len(pod.Spec.NodeName) == 0 {
 						podInfo.Pod = pod

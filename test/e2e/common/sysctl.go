@@ -17,10 +17,10 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/kubernetes/pkg/kubelet/sysctl"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
@@ -86,15 +86,12 @@ var _ = framework.KubeDescribe("Sysctls [LinuxOnly] [NodeFeature:Sysctls]", func
 		// might have already been deleted here.
 		ev, err := f.PodClient().WaitForErrorEventOrSuccess(pod)
 		framework.ExpectNoError(err)
-		if ev != nil && ev.Reason == sysctl.UnsupportedReason {
-			e2eskipper.Skipf("No sysctl support in Docker <1.12")
-		}
 		gomega.Expect(ev).To(gomega.BeNil())
 
 		ginkgo.By("Waiting for pod completion")
 		err = f.WaitForPodNoLongerRunning(pod.Name)
 		framework.ExpectNoError(err)
-		pod, err = podClient.Get(pod.Name, metav1.GetOptions{})
+		pod, err = podClient.Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		framework.ExpectNoError(err)
 
 		ginkgo.By("Checking that the pod succeeded")
@@ -129,15 +126,12 @@ var _ = framework.KubeDescribe("Sysctls [LinuxOnly] [NodeFeature:Sysctls]", func
 		// might have already been deleted here.
 		ev, err := f.PodClient().WaitForErrorEventOrSuccess(pod)
 		framework.ExpectNoError(err)
-		if ev != nil && ev.Reason == sysctl.UnsupportedReason {
-			e2eskipper.Skipf("No sysctl support in Docker <1.12")
-		}
 		gomega.Expect(ev).To(gomega.BeNil())
 
 		ginkgo.By("Waiting for pod completion")
 		err = f.WaitForPodNoLongerRunning(pod.Name)
 		framework.ExpectNoError(err)
-		pod, err = podClient.Get(pod.Name, metav1.GetOptions{})
+		pod, err = podClient.Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		framework.ExpectNoError(err)
 
 		ginkgo.By("Checking that the pod succeeded")
@@ -177,7 +171,7 @@ var _ = framework.KubeDescribe("Sysctls [LinuxOnly] [NodeFeature:Sysctls]", func
 
 		ginkgo.By("Creating a pod with one valid and two invalid sysctls")
 		client := f.ClientSet.CoreV1().Pods(f.Namespace.Name)
-		_, err := client.Create(pod)
+		_, err := client.Create(context.TODO(), pod, metav1.CreateOptions{})
 
 		gomega.Expect(err).NotTo(gomega.BeNil())
 		gomega.Expect(err.Error()).To(gomega.ContainSubstring(`Invalid value: "foo-"`))
@@ -206,9 +200,6 @@ var _ = framework.KubeDescribe("Sysctls [LinuxOnly] [NodeFeature:Sysctls]", func
 		// might have already been deleted here.
 		ev, err := f.PodClient().WaitForErrorEventOrSuccess(pod)
 		framework.ExpectNoError(err)
-		if ev != nil && ev.Reason == sysctl.UnsupportedReason {
-			e2eskipper.Skipf("No sysctl support in Docker <1.12")
-		}
 
 		ginkgo.By("Checking that the pod was rejected")
 		gomega.Expect(ev).ToNot(gomega.BeNil())

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,7 +33,6 @@ import (
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	fakeV1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	apitesting "k8s.io/kubernetes/pkg/api/testing"
@@ -41,7 +41,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
 	extenderv1 "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
 	frameworkplugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodelabel"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/serviceaffinity"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
@@ -109,8 +112,14 @@ func TestCreateFromConfig(t *testing.T) {
 		t.Errorf("Wrong hardPodAffinitySymmetricWeight, ecpected: %d, got: %d", v1.DefaultHardPodAffinitySymmetricWeight, hpa)
 	}
 	queueSortPls := sched.Framework.ListPlugins()["QueueSortPlugin"]
-	if len(queueSortPls) == 0 || queueSortPls[0].Name != queuesort.Name {
-		t.Errorf("QueueSort plugin %q not registered.", queuesort.Name)
+	wantQueuePls := []schedulerapi.Plugin{{Name: queuesort.Name}}
+	if diff := cmp.Diff(wantQueuePls, queueSortPls); diff != "" {
+		t.Errorf("Unexpected QueueSort plugins (-want, +got): %s", diff)
+	}
+	bindPls := sched.Framework.ListPlugins()["BindPlugin"]
+	wantBindPls := []schedulerapi.Plugin{{Name: defaultbinder.Name}}
+	if diff := cmp.Diff(wantBindPls, bindPls); diff != "" {
+		t.Errorf("Unexpected Bind plugins (-want, +got): %s", diff)
 	}
 
 	// Verify that node label predicate/priority are converted to framework plugins.
@@ -183,17 +192,29 @@ func TestCreateFromConfigWithHardPodAffinitySymmetricWeight(t *testing.T) {
 		"priorities" : [
 			{"name" : "RackSpread", "weight" : 3, "argument" : {"serviceAntiAffinity" : {"label" : "rack"}}},
 			{"name" : "NodeAffinityPriority", "weight" : 2},
-			{"name" : "ImageLocalityPriority", "weight" : 1}
+			{"name" : "ImageLocalityPriority", "weight" : 1},
+			{"name" : "InterPodAffinityPriority", "weight" : 1}
 		],
 		"hardPodAffinitySymmetricWeight" : 10
 	}`)
 	if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), configData, &policy); err != nil {
-		t.Errorf("Invalid configuration: %v", err)
+		t.Fatalf("Invalid configuration: %v", err)
 	}
 	factory.createFromConfig(policy)
-	hpa := factory.hardPodAffinitySymmetricWeight
-	if hpa != 10 {
-		t.Errorf("Wrong hardPodAffinitySymmetricWeight, ecpected: %d, got: %d", 10, hpa)
+	// TODO(#87703): Verify that the entire pluginConfig is correct.
+	foundAffinityCfg := false
+	for _, cfg := range factory.pluginConfig {
+		if cfg.Name == interpodaffinity.Name {
+			foundAffinityCfg = true
+			wantArgs := runtime.Unknown{Raw: []byte(`{"hardPodAffinityWeight":10}`)}
+
+			if diff := cmp.Diff(wantArgs, cfg.Args); diff != "" {
+				t.Errorf("wrong InterPodAffinity args (-want, +got): %s", diff)
+			}
+		}
+	}
+	if !foundAffinityCfg {
+		t.Errorf("args for InterPodAffinity were not found")
 	}
 }
 
@@ -212,6 +233,19 @@ func TestCreateFromEmptyConfig(t *testing.T) {
 	}
 
 	factory.createFromConfig(policy)
+	wantConfig := []schedulerapi.PluginConfig{
+		{
+			Name: noderesources.FitName,
+			Args: runtime.Unknown{Raw: []byte(`null`)},
+		},
+		{
+			Name: interpodaffinity.Name,
+			Args: runtime.Unknown{Raw: []byte(`{"hardPodAffinityWeight":1}`)},
+		},
+	}
+	if diff := cmp.Diff(wantConfig, factory.pluginConfig); diff != "" {
+		t.Errorf("wrong plugin config (-want, +got): %s", diff)
+	}
 }
 
 // Test configures a scheduler from a policy that does not specify any
@@ -368,43 +402,6 @@ func testClientGetPodRequest(client *fake.Clientset, t *testing.T, podNs string,
 	}
 	if !requestReceived {
 		t.Errorf("Get pod request not received")
-	}
-}
-
-// TODO(#87157): Move to DefaultBinding Plugin tests when it is introduced.
-func TestDefaultBinding(t *testing.T) {
-	binding := &v1.Binding{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: metav1.NamespaceDefault,
-			Name:      "foo",
-		},
-		Target: v1.ObjectReference{
-			Name: "foohost.kubernetes.mydomain.com",
-		},
-	}
-
-	testPod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: binding.GetName(), Namespace: metav1.NamespaceDefault},
-		Spec:       apitesting.V1DeepEqualSafePodSpec(),
-	}
-	client := fake.NewSimpleClientset(&v1.PodList{Items: []v1.Pod{*testPod}})
-
-	sched := Scheduler{client: client}
-	if err := sched.defaultBinding(binding); err != nil {
-		t.Errorf("Unexpected error: %v", err)
-		return
-	}
-
-	pods := client.CoreV1().Pods(metav1.NamespaceDefault).(*fakeV1.FakePods)
-	actualBinding, err := pods.GetBinding(binding.GetName())
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-		return
-	}
-	if !reflect.DeepEqual(binding, actualBinding) {
-		t.Errorf("Binding did not match expectation")
-		t.Logf("Expected: %v", binding)
-		t.Logf("Actual:   %v", actualBinding)
 	}
 }
 
